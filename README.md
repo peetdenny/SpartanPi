@@ -66,6 +66,7 @@ SpartanPi/
 ├── run_observations.py        # Orchestrates multiple runs
 ├── upload_npz.py             # Uploads to Google Drive
 ├── observe.sh                # Wrapper script with logging
+├── analyze_spectrum.py       # View statistics from .npz files
 ├── monitor_resources.py      # (Optional) System monitoring
 ├── turn_off_bias_T.sh        # Disables Airspy bias-T
 ├── logs/                     # Created automatically
@@ -132,10 +133,11 @@ For unattended data collection with automatic uploads:
 1. **Radio Silence ON**: WiFi and Ethernet are disabled to eliminate RF interference
 2. **Data Capture**: Airspy captures 100 million samples (~33 seconds at 3 MSPS)
 3. **FFT Processing**: Data is processed with 8192-point FFT and averaged
-4. **Save Results**: Compressed .npz file saved to `../output/` directory
-5. **Radio Silence OFF**: Network interfaces re-enabled
-6. **Upload**: Results uploaded to Google Drive via rclone
-7. **Cleanup**: Local .npz file deleted after successful upload
+4. **Statistics**: Signal quality metrics calculated (SNR, RFI, Doppler shift, etc.)
+5. **Save Results**: Compressed .npz file saved to `../output/` directory
+6. **Radio Silence OFF**: Network interfaces re-enabled
+7. **Upload**: Results uploaded to Google Drive via rclone
+8. **Cleanup**: Local .npz file deleted after successful upload
 
 ### Viewing Logs
 
@@ -144,9 +146,25 @@ Logs are saved to `logs/run_observations.log`:
 tail -f logs/run_observations.log
 ```
 
+### Analyzing Collected Data
+
+View detailed statistics from any captured .npz file:
+```bash
+python3 analyze_spectrum.py ../output/spectrum_20251224_143022.npz
+```
+
+This displays:
+- Signal quality metrics (SNR, noise floor, peak power)
+- Doppler shift and radial velocity calculations
+- RFI assessment
+- Hardware settings used
+- All available data fields
+
 ## 📊 Output Data Format
 
 Each observation produces a compressed `.npz` file containing:
+
+**Core Data:**
 - `spectrum`: Averaged power spectrum data
 - `freq_axis`: Frequency axis (Hz)
 - `sample_rate`: 3,000,000 Hz (3 MSPS)
@@ -155,12 +173,54 @@ Each observation produces a compressed `.npz` file containing:
 - `timestamp`: Capture timestamp (YYYYMMDD_HHMMSS)
 - `mode`: "on" or "off"
 
+**Spectrum Statistics:**
+- `peak_power_db`: Peak signal strength (dB)
+- `noise_floor_db`: Noise floor estimate (dB, 25th percentile)
+- `median_power_db`: Median power level (dB)
+- `snr_db`: Signal-to-noise ratio (dB)
+- `peak_frequency_hz`: Frequency of peak signal (Hz)
+- `hydrogen_offset_khz`: Offset from 1420.405751 MHz (kHz) - **Doppler shift!**
+- `rfi_percentage`: RFI indicator (% of bins > 10dB above noise)
+
+**Hardware Settings:**
+- `lna_gain`: LNA gain used (dB)
+- `mix_gain`: Mixer gain used (dB)
+- `vga_gain`: VGA gain used (dB)
+
 ### File Naming Convention
 ```
 spectrum_20251224_143022.npz
          ^^^^^^^^_^^^^^^
          date     time
 ```
+
+### Understanding Spectrum Statistics
+
+When each capture completes, you'll see output like:
+```
+==================================================
+           SPECTRUM STATISTICS
+==================================================
+Peak Power:            42.3 dB
+Noise Floor:           35.1 dB (25th percentile)
+Median Power:          36.8 dB
+SNR:                    7.2 dB
+--------------------------------------------------
+Peak Frequency:    1420.405821 MHz
+Target (H-line):   1420.405751 MHz
+Frequency Offset:      +0.07 kHz
+--------------------------------------------------
+FFT Windows:           12207
+RFI Indicator:          3.2% bins >10dB
+RFI Assessment:    ✅ Clean (< 5%)
+==================================================
+```
+
+**What these mean:**
+- **SNR > 5 dB**: Good signal detection
+- **RFI < 5%**: Clean data, minimal interference
+- **Frequency Offset**: Doppler shift from Earth's motion (velocity toward/away from source)
+- **FFT Windows**: More windows = better noise reduction
 
 ## 🔧 Advanced Configuration
 
