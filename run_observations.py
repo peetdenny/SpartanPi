@@ -2,11 +2,26 @@ import argparse
 import subprocess
 import time
 import os
+import shutil
 from datetime import datetime
 
 def log(msg):
     ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     print(f"[{ts}] {msg}", flush=True)
+
+def check_disk_space(path="/"):
+    """Check disk space and return stats in MB"""
+    stat = shutil.disk_usage(path)
+    total_mb = stat.total // (1024 * 1024)
+    used_mb = stat.used // (1024 * 1024)
+    free_mb = stat.free // (1024 * 1024)
+    percent_used = (stat.used / stat.total) * 100
+    return {
+        'total_mb': total_mb,
+        'used_mb': used_mb,
+        'free_mb': free_mb,
+        'percent_used': percent_used
+    }
 
 def radio_down():
     log("Radio silence ON: disabling wlan0 and eth0")
@@ -51,6 +66,18 @@ log(f"Capture timeout set to {capture_timeout//60} minutes")
 try:
     for i in range(args.runs):
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        
+        # Check disk space before capture
+        disk = check_disk_space()
+        log(f"Disk space: {disk['free_mb']} MB free ({disk['percent_used']:.1f}% used)")
+        
+        # Warn if disk space is low
+        if disk['free_mb'] < 1000:
+            log(f"WARNING: Low disk space! Only {disk['free_mb']} MB remaining")
+        if disk['free_mb'] < 500:
+            log("ERROR: Critically low disk space (< 500 MB). Aborting.")
+            raise RuntimeError(f"Insufficient disk space: {disk['free_mb']} MB free")
+        
         log(f"Starting {args.mode} run {i+1}/{args.runs} at {timestamp}")
 
         # Only silence during RF capture/processing
@@ -92,10 +119,15 @@ try:
         
         # ✅ Delete only after successful upload
         if npz_path.endswith(".npz") and os.path.exists(npz_path):
+            file_size_mb = os.path.getsize(npz_path) // (1024 * 1024)
             os.remove(npz_path)
-            log(f"Deleted local file after upload: {npz_path}")
+            log(f"Deleted local file after upload: {npz_path} ({file_size_mb} MB)")
         else:
             log(f"WARNING: not deleting (path missing or not .npz): {npz_path}")
+        
+        # Log disk space after cleanup
+        disk_after = check_disk_space()
+        log(f"Disk space after cleanup: {disk_after['free_mb']} MB free")
 
         if i < args.runs - 1:
             log(f"Pausing for {args.pause} seconds before next run")
