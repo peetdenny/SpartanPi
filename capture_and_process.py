@@ -12,6 +12,9 @@ args = parser.parse_args()
 
 # --- Settings ---
 sample_rate = 3_000_000       # Airspy Mini: 3 MSPS
+lna_gain = 0                  # Airspy LMA Gain = 0 dB (0-14 possible). Sawbird already has LNA gain
+mix_gain = 5                  # Airspy Mix Gain = 5 dB (0-15 possible). 
+vga_gain = 6                 # Airspy VGA Gain = 6 dB (0-15 possible). .
 sample_count = 100_000_000    # ~33s of data = ~382MB file
 
 freq=1420.405751 	# MHz
@@ -24,14 +27,19 @@ npz_file = f"../output/spectrum_{timestamp}.npz"
 
 # --- Step 1: Capture IQ data ---
 print(f"Capturing {sample_count} samples...")
-subprocess.run([
+airspy_rx_command = [
     "airspy_rx",
     "-b1",
+    "-l", str(lna_gain),
+    "-m", str(mix_gain),
+    "-v", str(vga_gain),
     "-f", str(freq),
     "-a", str(sample_rate),
     "-n", str(sample_count),
     "-r", bin_file
-], check=True)
+]
+print(f"Running command: {airspy_rx_command}")
+subprocess.run(airspy_rx_command, check=True)
 
 
 
