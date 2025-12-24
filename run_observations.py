@@ -78,7 +78,7 @@ try:
             log("ERROR: Critically low disk space (< 500 MB). Aborting.")
             raise RuntimeError(f"Insufficient disk space: {disk['free_mb']} MB free")
         
-        log(f"Starting {args.mode} run {i+1}/{args.runs} at {timestamp}")
+        log(f"Starting {args.mode} run {i+1}/{args.runs}")
 
         # Only silence during RF capture/processing
         radio_down()
