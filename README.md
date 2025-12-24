@@ -13,7 +13,7 @@ The SpartanPi system performs automated radio astronomy observations by:
 ## 📋 Prerequisites
 
 ### Hardware
-- **Raspberry Pi** (or similar Linux computer)
+- **Raspberry Pi** (or similar Linux machine)
 - **Airspy Mini SDR** (or compatible Airspy device)
 - **Radio antenna** tuned for 1420 MHz (hydrogen line)
 - Stable internet connection for uploads

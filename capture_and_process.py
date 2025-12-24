@@ -26,7 +26,19 @@ npz_file = f"../output/spectrum_{timestamp}.npz"
 
 
 # --- Step 1: Capture IQ data ---
-print(f"Capturing {sample_count} samples...")
+print("\n" + "="*50)
+print("           CAPTURE CONFIGURATION")
+print("="*50)
+print(f"Frequency:       {freq} MHz (Hydrogen line)")
+print(f"Sample Rate:     {sample_rate/1e6:.1f} MSPS")
+print(f"Sample Count:    {sample_count:,} (~{sample_count/sample_rate:.0f}s)")
+print(f"LNA Gain:        {lna_gain} dB")
+print(f"Mixer Gain:      {mix_gain} dB")
+print(f"VGA Gain:        {vga_gain} dB")
+print(f"Output File:     {bin_file}")
+print("="*50 + "\n")
+
+print(f"Starting capture...")
 airspy_rx_command = [
     "airspy_rx",
     "-b1",
@@ -38,7 +50,6 @@ airspy_rx_command = [
     "-n", str(sample_count),
     "-r", bin_file
 ]
-print(f"Running command: {airspy_rx_command}")
 subprocess.run(airspy_rx_command, check=True)
 
 
