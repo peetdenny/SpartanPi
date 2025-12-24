@@ -64,6 +64,14 @@ try:
                 text=True,
                 timeout=capture_timeout,  
             )
+            # Print captured output so it's visible in logs
+            if r.stdout:
+                for line in r.stdout.strip().splitlines():
+                    print(line, flush=True)
+            if r.stderr:
+                for line in r.stderr.strip().splitlines():
+                    print(line, flush=True)
+            
             npz_path = r.stdout.strip().splitlines()[-1]
             log(f"Capture produced: {npz_path}")
 
