@@ -176,12 +176,21 @@ fft_size = 8192               # FFT window size
 
 ### System Resource Monitoring
 
-Monitor CPU temperature and memory during long runs:
+**Quick check** - view current system status:
 ```bash
-python3 monitor_resources.py &
+python3 monitor_resources.py --once
 ```
 
-This logs system metrics to `resource_log.csv` every minute.
+**Continuous monitoring** - log to CSV during long runs:
+```bash
+# Default: log every 60 seconds to resource_log.csv
+python3 monitor_resources.py &
+
+# Custom interval and log file
+python3 monitor_resources.py --interval 30 --log-file my_resources.csv &
+```
+
+The `--once` flag is useful for checking system health before/after observations.
 
 ### Disable Airspy Bias-T
 
