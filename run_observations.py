@@ -54,6 +54,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--runs", type=int, default=1)
 parser.add_argument("--pause", type=int, default=180)
 parser.add_argument("--mode", choices=["on", "off"], required=True)
+parser.add_argument("--name", type=str, default="observation", help="Observation name for filename")
 args = parser.parse_args()
 
 # Fail fast if sudo will block
@@ -85,7 +86,7 @@ try:
         try:
             log(f"Radio silence ON (run {i+1}/{args.runs})")
             r=subprocess.run(
-                ["python3", "capture_and_process.py", "--mode", args.mode],
+                ["python3", "capture_and_process.py", "--mode", args.mode, "--name", args.name],
                 check=True,
                 capture_output=True,
                 text=True,

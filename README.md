@@ -66,6 +66,8 @@ SpartanPi/
 ├── run_observations.py        # Orchestrates multiple runs
 ├── upload_npz.py             # Uploads to Google Drive
 ├── observe.sh                # Wrapper script with logging
+├── run_shedule.sh            # Time-based scheduler
+├── schedule.txt.example      # Example schedule file
 ├── analyze_spectrum.py       # View statistics from .npz files
 ├── monitor_resources.py      # (Optional) System monitoring
 ├── turn_off_bias_T.sh        # Disables Airspy bias-T
@@ -102,13 +104,13 @@ youruser ALL=(ALL) NOPASSWD: /sbin/ifconfig
 Capture data with the antenna pointed at a radio source:
 ```bash
 cd ~/dev/SpartanPi  # or wherever you cloned the project
-python3 capture_and_process.py --mode on
+python3 capture_and_process.py --mode on --name galactic_center
 ```
 
 #### Single Observation (OFF mode)
 Capture background/reference data with antenna pointed away:
 ```bash
-python3 capture_and_process.py --mode off
+python3 capture_and_process.py --mode off --name background_ref
 ```
 
 ### Automated Multiple Runs
@@ -117,16 +119,52 @@ For unattended data collection with automatic uploads:
 
 ```bash
 # 5 ON observations with 3-minute pauses between runs
-./observe.sh --runs 5 --pause 180 --mode on
+./observe.sh --runs 5 --pause 180 --mode on --name cassiopeia
 
 # Single OFF observation
-./observe.sh --runs 1 --mode off
+./observe.sh --runs 1 --mode off --name background_ref
 ```
 
 **Parameters:**
 - `--runs N`: Number of observations to collect (default: 1)
 - `--pause N`: Seconds to wait between runs (default: 180)
 - `--mode on|off`: Antenna mode (ON = pointing at source, OFF = reference)
+- `--name NAME`: Observation name (used in filename, default: "observation")
+
+### Scheduled Observations
+
+For running observations at specific times, use the scheduler:
+
+1. **Create a schedule file** (or copy from example):
+```bash
+cp schedule.txt.example schedule.txt
+```
+
+2. **Edit `schedule.txt`** with your observation plan:
+```
+# time(YYYY-MM-DD HH:MM)  mode  runs  pause_seconds  observation_name
+2025-12-29 14:50          off   10    180            cassiopeia_ref
+2025-12-29 15:30          on    40    180            cassiopeia_on
+2025-12-29 18:00          off   10    180            background_sky
+```
+
+3. **Run the scheduler**:
+```bash
+./run_shedule.sh schedule.txt
+```
+
+The scheduler will:
+- Wait until each scheduled time
+- Execute the observations with the specified parameters
+- Continue to the next scheduled job even if one fails
+- Skip any jobs already in the past
+
+**Tip:** Run the scheduler in the background or screen/tmux session for long observation campaigns:
+```bash
+screen -S observations
+./run_shedule.sh schedule.txt
+# Ctrl+A, D to detach
+```
 
 ### What Happens During a Run
 
@@ -150,7 +188,7 @@ tail -f logs/run_observations.log
 
 View detailed statistics from any captured .npz file:
 ```bash
-python3 analyze_spectrum.py ../output/spectrum_20251224_143022.npz
+python3 analyze_spectrum.py ../output/cassiopeia_on_20251224_143022.npz
 ```
 
 This displays:
@@ -172,6 +210,7 @@ Each observation produces a compressed `.npz` file containing:
 - `averaging_windows`: Number of FFT windows averaged
 - `timestamp`: Capture timestamp (YYYYMMDD_HHMMSS)
 - `mode`: "on" or "off"
+- `observation_name`: Custom name for the observation
 
 **Spectrum Statistics:**
 - `peak_power_db`: Peak signal strength (dB)
@@ -189,9 +228,14 @@ Each observation produces a compressed `.npz` file containing:
 
 ### File Naming Convention
 ```
-spectrum_20251224_143022.npz
-         ^^^^^^^^_^^^^^^
-         date     time
+cassiopeia_on_20251224_143022.npz
+^^^^^^^^^^^^^_^^^^^^^^_^^^^^^
+obs_name      date     time
+```
+
+Old format (still works if no name specified):
+```
+observation_20251224_143022.npz
 ```
 
 ### Understanding Spectrum Statistics

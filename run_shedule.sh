@@ -18,16 +18,22 @@ while IFS= read -r line; do
   [[ -z "$line" ]] && continue
   [[ "$line" =~ ^[[:space:]]*# ]] && continue
 
-  # Parse: YYYY-MM-DD HH:MM  mode  runs  pause
+  # Parse: YYYY-MM-DD HH:MM  mode  runs  pause  observation_name
   date_part="$(echo "$line" | awk '{print $1}')"
   time_part="$(echo "$line" | awk '{print $2}')"
   mode="$(echo "$line" | awk '{print $3}')"
   runs="$(echo "$line" | awk '{print $4}')"
   pause="$(echo "$line" | awk '{print $5}')"
+  obs_name="$(echo "$line" | awk '{print $6}')"
 
   if [[ -z "${date_part:-}" || -z "${time_part:-}" || -z "${mode:-}" || -z "${runs:-}" || -z "${pause:-}" ]]; then
     echo "[runner] Skipping malformed line: $line" >&2
     continue
+  fi
+  
+  # Default observation name if not provided
+  if [[ -z "${obs_name:-}" ]]; then
+    obs_name="observation"
   fi
 
   target_str="${date_part} ${time_part}"
@@ -45,11 +51,11 @@ while IFS= read -r line; do
   fi
 
   wait_secs=$(( target_epoch - now_epoch ))
-  echo "[runner] Next job: $target_str  mode=$mode runs=$runs pause=$pause (starts in ${wait_secs}s)"
+  echo "[runner] Next job: $target_str  mode=$mode runs=$runs pause=$pause name=$obs_name (starts in ${wait_secs}s)"
   sleep "$wait_secs"
 
-  echo "[runner] START $(date '+%Y-%m-%d %H:%M:%S %Z')  mode=$mode runs=$runs pause=$pause"
-  "${SCRIPT_DIR}/observe.sh" --mode "$mode" --runs "$runs" --pause "$pause" || {
+  echo "[runner] START $(date '+%Y-%m-%d %H:%M:%S %Z')  mode=$mode runs=$runs pause=$pause name=$obs_name"
+  "${SCRIPT_DIR}/observe.sh" --mode "$mode" --runs "$runs" --pause "$pause" --name "$obs_name" || {
     echo "[runner] ERROR: job failed at $(date '+%Y-%m-%d %H:%M:%S %Z')"
     # Continue to next job rather than exiting
   }

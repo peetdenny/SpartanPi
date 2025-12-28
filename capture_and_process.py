@@ -7,6 +7,7 @@ import argparse
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--mode", choices=["on", "off"], required=True)
+parser.add_argument("--name", type=str, default="observation", help="Observation name for filename")
 args = parser.parse_args()
 
 
@@ -22,7 +23,9 @@ fft_size = 8192               # FFT window size
 bin_file = "capture.bin"
 
 timestamp = time.strftime("%Y%m%d_%H%M%S")
-npz_file = f"../output/spectrum_{timestamp}.npz"
+# Sanitize observation name (replace spaces/special chars with underscores)
+safe_name = "".join(c if c.isalnum() or c in ('-', '_') else '_' for c in args.name)
+npz_file = f"../output/{safe_name}_{timestamp}.npz"
 
 
 # --- Step 1: Capture IQ data ---
@@ -144,6 +147,7 @@ np.savez_compressed(
     averaging_windows=n_chunks,
     timestamp=timestamp,
     mode=args.mode,
+    observation_name=args.name,
     # Spectrum statistics
     peak_power_db=peak_power_db,
     noise_floor_db=noise_floor_db,
