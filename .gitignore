@@ -1,3 +1,5 @@
 archive/
 logs/
 .env
+.venv
+schedule.txt
