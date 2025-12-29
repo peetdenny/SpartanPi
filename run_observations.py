@@ -141,19 +141,23 @@ try:
             # Add to list for batch upload later
             if npz_path.endswith(".npz") and os.path.exists(npz_path):
                 captured_files.append(npz_path)
-                
-                # Send heartbeat with progress
-                send_heartbeat_safe(
-                    run_index=i+1, 
-                    total_runs=args.runs, 
-                    last_capture=os.path.basename(npz_path)
-                )
             else:
                 log(f"WARNING: Unexpected output path: {npz_path}")
 
         finally:
             # Always re-enable network even if capture fails
             radio_up()
+
+        # Wait for network, then send heartbeat while network is up
+        wait_for_network(max_seconds=45)
+        
+        # Send heartbeat with progress (network is now up)
+        if npz_path.endswith(".npz") and os.path.exists(npz_path):
+            send_heartbeat_safe(
+                run_index=i+1, 
+                total_runs=args.runs, 
+                last_capture=os.path.basename(npz_path)
+            )
 
         if i < args.runs - 1:
             log(f"Pausing for {args.pause} seconds before next run")
