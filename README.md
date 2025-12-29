@@ -168,14 +168,24 @@ screen -S observations
 
 ### What Happens During a Run
 
+For **single runs** (or each run in a batch):
 1. **Radio Silence ON**: WiFi and Ethernet are disabled to eliminate RF interference
 2. **Data Capture**: Airspy captures 100 million samples (~33 seconds at 3 MSPS)
 3. **FFT Processing**: Data is processed with 8192-point FFT and averaged
 4. **Statistics**: Signal quality metrics calculated (SNR, RFI, Doppler shift, etc.)
 5. **Save Results**: Compressed .npz file saved to `../output/` directory
 6. **Radio Silence OFF**: Network interfaces re-enabled
-7. **Upload**: Results uploaded to Google Drive via rclone
-8. **Cleanup**: Local .npz file deleted after successful upload
+7. **Pause**: Wait before next run (if in a batch)
+
+After **all runs complete** in a batch:
+1. **Batch Upload**: All captured files uploaded together to Google Drive via rclone
+2. **Cleanup**: Local .npz files deleted after successful upload
+3. **Summary**: Total files and disk space recovered logged
+
+**Benefits of batch upload:**
+- Reduces system load during long observation runs
+- Single network operation instead of many
+- More efficient for large batches (e.g., 20+ runs)
 
 ### Viewing Logs
 
@@ -371,7 +381,12 @@ rclone ls gdrive:
 
 # Check output directory exists
 ls -la ../output/
+
+# Manually upload any remaining files
+python3 upload_npz.py
 ```
+
+**Note:** If a batch run is interrupted, the script will attempt an emergency upload of any captured files. If that fails, files remain in `../output/` and you can upload them manually later.
 
 ### Capture Timeout
 Default timeout is 10 minutes per run. For slower systems, edit `run_observations.py`:

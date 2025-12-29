@@ -64,6 +64,9 @@ capture_timeout = 60 * CAPTURE_MIN_PER_RUN * args.runs
 
 log(f"Capture timeout set to {capture_timeout//60} minutes")
 
+# Collect all captured files for batch upload at the end
+captured_files = []
+
 try:
     for i in range(args.runs):
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -102,43 +105,80 @@ try:
             
             npz_path = r.stdout.strip().splitlines()[-1]
             log(f"Capture produced: {npz_path}")
-
+            
+            # Add to list for batch upload later
+            if npz_path.endswith(".npz") and os.path.exists(npz_path):
+                captured_files.append(npz_path)
+            else:
+                log(f"WARNING: Unexpected output path: {npz_path}")
 
         finally:
             # Always re-enable network even if capture fails
             radio_up()
 
+        if i < args.runs - 1:
+            log(f"Pausing for {args.pause} seconds before next run")
+            time.sleep(args.pause)
+    
+    # ===== Batch Upload at the End =====
+    if captured_files:
+        log(f"\n{'='*60}")
+        log(f"All captures complete. Starting batch upload of {len(captured_files)} files...")
+        log(f"{'='*60}")
+        
         wait_for_network(max_seconds=45)
-
-        # Now upload with network enabled + timeout so it can't hang forever
+        
+        # Upload all files at once
         log("Uploading results...")
         subprocess.run(
             ["python3", "upload_npz.py"],
             check=True,
-            timeout=60*10,  # 10 min safety
+            timeout=60*20,  # 20 min safety for batch uploads
         )
         
-        # ✅ Delete only after successful upload
-        if npz_path.endswith(".npz") and os.path.exists(npz_path):
-            file_size_mb = os.path.getsize(npz_path) // (1024 * 1024)
-            os.remove(npz_path)
-            log(f"Deleted local file after upload: {npz_path} ({file_size_mb} MB)")
-        else:
-            log(f"WARNING: not deleting (path missing or not .npz): {npz_path}")
+        # ✅ Delete files only after successful upload
+        log("Upload successful. Cleaning up local files...")
+        total_size_mb = 0
+        for npz_path in captured_files:
+            if os.path.exists(npz_path):
+                file_size_mb = os.path.getsize(npz_path) // (1024 * 1024)
+                total_size_mb += file_size_mb
+                os.remove(npz_path)
+                log(f"  Deleted: {os.path.basename(npz_path)} ({file_size_mb} MB)")
+            else:
+                log(f"  WARNING: File not found: {npz_path}")
         
-        # Log disk space after cleanup
+        log(f"Cleaned up {len(captured_files)} files ({total_size_mb} MB total)")
+        
+        # Log final disk space
         disk_after = check_disk_space()
-        log(f"Disk space after cleanup: {disk_after['free_mb']} MB free")
-
-        if i < args.runs - 1:
-            log(f"Pausing for {args.pause} seconds before next run")
-            time.sleep(args.pause)
+        log(f"Final disk space: {disk_after['free_mb']} MB free")
+    else:
+        log("No files captured to upload.")
 
 except subprocess.TimeoutExpired as e:
     log(f"TIMEOUT: {e.cmd} exceeded {e.timeout}s")
+    # Try to upload any captured files before exiting
+    if captured_files:
+        log(f"Attempting emergency upload of {len(captured_files)} captured files...")
+        try:
+            subprocess.run(["python3", "upload_npz.py"], timeout=60*20)
+            log("Emergency upload successful")
+        except Exception as upload_err:
+            log(f"Emergency upload failed: {upload_err}")
+            log(f"Files remain in ../output/: {[os.path.basename(f) for f in captured_files]}")
     raise
 except Exception as e:
     log(f"ERROR encountered: {e}")
+    # Try to upload any captured files before exiting
+    if captured_files:
+        log(f"Attempting emergency upload of {len(captured_files)} captured files...")
+        try:
+            subprocess.run(["python3", "upload_npz.py"], timeout=60*20)
+            log("Emergency upload successful")
+        except Exception as upload_err:
+            log(f"Emergency upload failed: {upload_err}")
+            log(f"Files remain in ../output/: {[os.path.basename(f) for f in captured_files]}")
     raise
 finally:
     # Belt-and-braces: ensure network is up when script exits
