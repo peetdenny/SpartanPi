@@ -5,6 +5,16 @@ import os
 import shutil
 from datetime import datetime
 
+# Import heartbeat functionality
+try:
+    from heartbeat import send_heartbeat
+    HEARTBEAT_ENABLED = True
+    NODE_ID = os.environ.get("NODE_ID", "Spartan-001")
+    BACKEND_URL = os.environ.get("BACKEND_URL", "https://astron00b.com")
+except ImportError:
+    HEARTBEAT_ENABLED = False
+    log("WARNING: heartbeat.py not found, heartbeat disabled")
+
 def log(msg):
     ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     print(f"[{ts}] {msg}", flush=True)
@@ -22,6 +32,23 @@ def check_disk_space(path="/"):
         'free_mb': free_mb,
         'percent_used': percent_used
     }
+
+def send_heartbeat_safe(run_index=None, total_runs=None, last_capture=None):
+    """Send heartbeat with error handling (non-blocking)"""
+    if not HEARTBEAT_ENABLED:
+        return
+    
+    try:
+        send_heartbeat(
+            NODE_ID, 
+            BACKEND_URL, 
+            run_index=run_index, 
+            total_runs=total_runs, 
+            last_capture=last_capture
+        )
+    except Exception as e:
+        # Don't fail the observation if heartbeat fails
+        log(f"Heartbeat error (non-fatal): {e}")
 
 def radio_down():
     log("Radio silence ON: disabling wlan0 and eth0")
@@ -63,6 +90,11 @@ CAPTURE_MIN_PER_RUN = 10
 capture_timeout = 60 * CAPTURE_MIN_PER_RUN * args.runs
 
 log(f"Capture timeout set to {capture_timeout//60} minutes")
+
+# Send initial heartbeat
+if HEARTBEAT_ENABLED:
+    log(f"Heartbeat enabled: Node {NODE_ID} → {BACKEND_URL}")
+    send_heartbeat_safe(run_index=0, total_runs=args.runs)
 
 # Collect all captured files for batch upload at the end
 captured_files = []
@@ -109,6 +141,13 @@ try:
             # Add to list for batch upload later
             if npz_path.endswith(".npz") and os.path.exists(npz_path):
                 captured_files.append(npz_path)
+                
+                # Send heartbeat with progress
+                send_heartbeat_safe(
+                    run_index=i+1, 
+                    total_runs=args.runs, 
+                    last_capture=os.path.basename(npz_path)
+                )
             else:
                 log(f"WARNING: Unexpected output path: {npz_path}")
 
@@ -153,6 +192,9 @@ try:
         # Log final disk space
         disk_after = check_disk_space()
         log(f"Final disk space: {disk_after['free_mb']} MB free")
+        
+        # Send final heartbeat
+        send_heartbeat_safe(run_index=args.runs, total_runs=args.runs, last_capture="batch_complete")
     else:
         log("No files captured to upload.")
 

@@ -27,7 +27,8 @@ sudo apt-get install airspy
 
 # Install Python dependencies
 sudo apt-get install python3 python3-pip
-pip3 install numpy psutil
+pip3 install -r requirements.txt
+# Or manually: pip3 install numpy psutil requests
 
 # Install rclone for Google Drive uploads
 curl https://rclone.org/install.sh | sudo bash
@@ -69,8 +70,10 @@ SpartanPi/
 ├── run_shedule.sh            # Time-based scheduler
 ├── schedule.txt.example      # Example schedule file
 ├── analyze_spectrum.py       # View statistics from .npz files
+├── heartbeat.py              # Node health monitoring
 ├── monitor_resources.py      # (Optional) System monitoring
 ├── turn_off_bias_T.sh        # Disables Airspy bias-T
+├── requirements.txt          # Python dependencies
 ├── logs/                     # Created automatically
 └── README.md
 
@@ -275,6 +278,75 @@ RFI Assessment:    ✅ Clean (< 5%)
 - **RFI < 5%**: Clean data, minimal interference
 - **Frequency Offset**: Doppler shift from Earth's motion (velocity toward/away from source)
 - **FFT Windows**: More windows = better noise reduction
+
+## 📡 Node Health Monitoring (Heartbeat)
+
+The system includes a heartbeat feature to report node status to the Astron00b backend.
+
+### Configuration
+
+Set these environment variables (or edit `heartbeat.py` defaults):
+
+```bash
+export NODE_ID="Spartan-001"              # Your unique node identifier
+export BACKEND_URL="https://astron00b.com"  # Backend URL
+export HEARTBEAT_INTERVAL="30"            # Seconds between heartbeats
+```
+
+### Automatic Heartbeat
+
+Heartbeats are **automatically sent** during observation runs:
+- Before starting a batch
+- After each capture completes (with run progress)
+- After batch upload completes
+
+Example heartbeat payload:
+```json
+{
+  "ts": "2025-12-29T14:02:31Z",
+  "uptime_s": 123456,
+  "load": "0.41 0.32 0.28",
+  "run_index": 7,
+  "total_runs": 20,
+  "last_capture": "cassiopeia_on_20251229_140155.npz"
+}
+```
+
+### Manual Heartbeat Testing
+
+```bash
+# Send a single heartbeat
+python3 heartbeat.py --once
+
+# Run continuous heartbeat (every 30s)
+python3 heartbeat.py
+
+# Custom interval
+python3 heartbeat.py --interval 60
+
+# Custom node ID and backend
+python3 heartbeat.py --node-id Spartan-002 --backend-url https://test.astron00b.com
+```
+
+### Background Heartbeat Service
+
+For 24/7 monitoring independent of observations:
+
+```bash
+# Run in background
+nohup python3 heartbeat.py > heartbeat.log 2>&1 &
+
+# Or with systemd (create /etc/systemd/system/spartan-heartbeat.service)
+```
+
+### Troubleshooting
+
+If heartbeat fails, observations will **continue normally** (non-blocking). Check logs for:
+```
+Heartbeat error (non-fatal): Connection refused
+```
+
+The backend must implement `POST /api/nodes/heartbeat/{nodeId}` to receive pings.
 
 ## 🔧 Advanced Configuration
 

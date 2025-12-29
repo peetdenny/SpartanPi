@@ -1,0 +1,19 @@
+[Unit]
+Description=SpartanPi Node Heartbeat Service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=denny
+WorkingDirectory=/home/denny/dev/SpartanPi
+Environment="NODE_ID=Spartan-001"
+Environment="BACKEND_URL=https://astron00b.com"
+Environment="HEARTBEAT_INTERVAL=30"
+ExecStart=/usr/bin/python3 /home/denny/dev/SpartanPi/heartbeat.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+

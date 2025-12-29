@@ -12,7 +12,8 @@ mkdir -p "$LOG_DIR"
 
 echo "[wrapper] Logging to: $LOG_FILE"
 echo "[wrapper] Command: python3 ${SCRIPT_DIR}/run_observations.py $*"
+echo ""
 
-# Run + log to file and console
-python3 "${SCRIPT_DIR}/run_observations.py" "$@" 2>&1 | tee -a "$LOG_FILE"
+# Run + log to file and console (unbuffered for real-time output)
+python3 -u "${SCRIPT_DIR}/run_observations.py" "$@" 2>&1 | tee -a "$LOG_FILE"
 
