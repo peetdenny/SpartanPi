@@ -51,15 +51,25 @@ def send_heartbeat_safe(run_index=None, total_runs=None, last_capture=None):
         log(f"Heartbeat error (non-fatal): {e}")
 
 def radio_down():
+    if args.no_radio_silence:
+        log("Radio silence SKIPPED (--no-radio-silence flag set)")
+        return
+    
     log("Radio silence ON: disabling wlan0 and eth0")
     for iface in ("wlan0", "eth0"):
-        r = subprocess.run(["sudo", "ifconfig", iface, "down"], check=False)
-        log(f"  {iface} down → rc={r.returncode}")
+        r = subprocess.run(["sudo", "ifconfig", iface, "down"], check=False, capture_output=True)
+        if r.returncode != 0:
+            log(f"  {iface} down → WARNING: failed (rc={r.returncode}) - continuing anyway")
+        else:
+            log(f"  {iface} down → OK")
 
 def radio_up():
+    if args.no_radio_silence:
+        return
+    
     log("Radio silence OFF: enabling eth0 and wlan0")
-    subprocess.run(["sudo", "ifconfig", "eth0", "up"], check=False)
-    subprocess.run(["sudo", "ifconfig", "wlan0", "up"], check=False)
+    subprocess.run(["sudo", "ifconfig", "eth0", "up"], check=False, capture_output=True)
+    subprocess.run(["sudo", "ifconfig", "wlan0", "up"], check=False, capture_output=True)
     log("Radio silence OFF (capture complete)")
 
 
@@ -82,6 +92,7 @@ parser.add_argument("--runs", type=int, default=1)
 parser.add_argument("--pause", type=int, default=180)
 parser.add_argument("--mode", choices=["on", "off"], required=True)
 parser.add_argument("--name", type=str, default="observation", help="Observation name for filename")
+parser.add_argument("--no-radio-silence", action="store_true", help="Skip network disable (for laptops/systems without sudo)")
 args = parser.parse_args()
 
 # Fail fast if sudo will block
@@ -118,8 +129,9 @@ try:
 
         # Only silence during RF capture/processing
         radio_down()
+        npz_path = None  # Initialize to handle errors
         try:
-            log(f"Radio silence ON (run {i+1}/{args.runs})")
+            log(f"Starting capture (run {i+1}/{args.runs})")
             r=subprocess.run(
                 ["python3", "capture_and_process.py", "--mode", args.mode, "--name", args.name],
                 check=True,
@@ -143,6 +155,17 @@ try:
                 captured_files.append(npz_path)
             else:
                 log(f"WARNING: Unexpected output path: {npz_path}")
+                
+        except subprocess.CalledProcessError as capture_error:
+            # Show the actual error from capture script
+            log(f"❌ Capture failed with exit code {capture_error.returncode}")
+            if capture_error.stdout:
+                log("=== Capture stdout ===")
+                print(capture_error.stdout)
+            if capture_error.stderr:
+                log("=== Capture stderr ===")
+                print(capture_error.stderr)
+            raise  # Re-raise to trigger cleanup
 
         finally:
             # Always re-enable network even if capture fails
@@ -151,8 +174,8 @@ try:
         # Wait for network, then send heartbeat while network is up
         wait_for_network(max_seconds=45)
         
-        # Send heartbeat with progress (network is now up)
-        if npz_path.endswith(".npz") and os.path.exists(npz_path):
+        # Send heartbeat with progress (network is now up) - only if capture succeeded
+        if npz_path and npz_path.endswith(".npz") and os.path.exists(npz_path):
             send_heartbeat_safe(
                 run_index=i+1, 
                 total_runs=args.runs, 
@@ -202,6 +225,15 @@ try:
     else:
         log("No files captured to upload.")
 
+except subprocess.CalledProcessError as e:
+    log(f"UPLOAD FAILED: {e.cmd} returned exit code {e.returncode}")
+    log(f"❌ Files NOT deleted - they remain in ../output/")
+    if captured_files:
+        log(f"Protected files ({len(captured_files)}):")
+        for f in captured_files:
+            log(f"  - {os.path.basename(f)}")
+    log("\nTo retry upload manually: python3 upload_npz.py")
+    raise
 except subprocess.TimeoutExpired as e:
     log(f"TIMEOUT: {e.cmd} exceeded {e.timeout}s")
     # Try to upload any captured files before exiting

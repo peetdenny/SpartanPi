@@ -182,13 +182,19 @@ For **single runs** (or each run in a batch):
 
 After **all runs complete** in a batch:
 1. **Batch Upload**: All captured files uploaded together to Google Drive via rclone
-2. **Cleanup**: Local .npz files deleted after successful upload
-3. **Summary**: Total files and disk space recovered logged
+2. **Verification**: Each file upload is verified (exit code checked)
+3. **Cleanup**: Local .npz files deleted **ONLY IF** all uploads succeeded
+4. **Summary**: Total files and disk space recovered logged
 
 **Benefits of batch upload:**
 - Reduces system load during long observation runs
 - Single network operation instead of many
 - More efficient for large batches (e.g., 20+ runs)
+
+**Safety Features:**
+- ⚠️ **Upload failures are detected** - if any upload fails, NO files are deleted
+- 📁 Files remain safely in `../output/` until successful upload
+- 🔁 Manual retry available: `python3 upload_npz.py`
 
 ### Viewing Logs
 
@@ -447,16 +453,37 @@ sudo ifconfig wlan0 up
 ```
 
 ### Upload Failures
+
+**Symptoms:**
+- Log shows: `❌ UPLOAD FAILED - Files will NOT be deleted`
+- Files remain in `../output/` directory
+- Common causes: expired rclone token, network issues, Drive quota
+
+**Diagnosis:**
 ```bash
 # Test rclone connection
 rclone ls gdrive:
 
-# Check output directory exists
-ls -la ../output/
+# Check for token errors
+rclone about gdrive:
 
-# Manually upload any remaining files
-python3 upload_npz.py
+# List protected files
+ls -lh ../output/*.npz
 ```
+
+**Recovery:**
+```bash
+# 1. Fix rclone config (if token expired)
+# See "Service Account" section above for permanent fix
+
+# 2. Retry upload once fixed
+python3 upload_npz.py
+
+# 3. If successful, files will be deleted automatically
+# If still failing, check logs for specific error
+```
+
+**Important:** The system will **NEVER delete files unless upload succeeds**. This prevents data loss from silent upload failures.
 
 **Note:** If a batch run is interrupted, the script will attempt an emergency upload of any captured files. If that fails, files remain in `../output/` and you can upload them manually later.
 
